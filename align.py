@@ -1,13 +1,17 @@
 import cv2 as cv
 
-def drawMatches(frame_rght, kp1, frame_left, kp2, matches):
-
+def compute_shift(frame_rght, kp1, frame_left, kp2, matches):
+    """
+    Use the best matching keypoints between both frames to compute the mean of
+    all y-values of all points in each image. Find difference between centers
+    """
     avg_x_rght = 0
     avg_x_left = 0
     avg_y_rght = 0
     avg_y_left = 0
-    # For each pair of points we have between both images
-    # draw circles, then connect a line between them
+
+    # Iterate over all keypoints to compute the mean in every direction for
+    # both frames
     for mat in matches:
 
         # Get the matching keypoints for each of the images
@@ -24,15 +28,22 @@ def drawMatches(frame_rght, kp1, frame_left, kp2, matches):
         avg_y_rght += y1
         avg_y_left += y2
 
+    # Compute averages
     avg_x_rght /= len(matches)
     avg_x_left /= len(matches)
     avg_y_rght /= len(matches)
     avg_y_left /= len(matches)
 
-    return avg_y_rght - avg_y_left
+    return int(avg_y_rght - avg_y_left)
 
 
 def match_frames(frame_rght, frame_left):
+    """
+    Creates unique feature points on both left and right images using ORB and
+    computes the amount of shift required to align frames.
+    Returns the amount of vertical shift to align both frames.
+    """
+
     # ORB detector: 1000 keypoints; scaling pyramid factor of 1.2
     orb       = cv.ORB_create()#1000, 1.2)
 
@@ -45,15 +56,19 @@ def match_frames(frame_rght, frame_left):
     matches   = bf.match(des_r, des_l)
     matches   = sorted(matches, key=lambda val: val.distance) # based on distance
 
+    # Use the best 15% of matches
     numGoodMatches = int(len(matches) * 0.15)
 
-    # out     = np.zeros((max([rows1,rows2]), cols1+cols2, 3), dtype='uint8')
-    y_shift = drawMatches(frame_rght, kp_r, frame_left, kp_l, matches[:numGoodMatches])
-
-    return int(y_shift)
+    # Compute the amount of vertical shift needed to align frames horizontally
+    # and return
+    return compute_shift(frame_rght, kp_r, frame_left, kp_l, matches[:numGoodMatches])
 
 
 def get_crop_indices(y_shift, height):
+    """
+    Compute row indices for both frames using the amount of vertical shift and
+    the height of both frames.
+    """
     top_l = 0
     bot_l = height
     top_r = 0

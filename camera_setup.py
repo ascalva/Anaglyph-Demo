@@ -7,9 +7,14 @@ LEFT_CAM 	= 2
 WAIT        = 100
 
 def init_cameras():
+    """
+    Continuously attempt at connecting to all three cameras. Done once all
+    cameras are connected and are successfully used to take pictues.
+    """
     attempt = 1
     print("\nAttempt #{0}".format(attempt))
 
+    # Open cameras and check their status
     while True :
         cen_cam            = cv.VideoCapture(LAPTOP_CAM)
         ret_cen, frame_cen = cen_cam.read()
@@ -39,12 +44,15 @@ def init_cameras():
         else :
             print("Left Camera FAILED.")
 
+        # Check to see if all cameras were successfully connected
         if ret_cen and ret_rght and ret_left :
             cen_cam.release()
 
+            # Return both exterior cameras
             return rght_cam, left_cam
 
         else:
+            # Release cameras and try again
             cen_cam .release()
             rght_cam.release()
             left_cam.release()
