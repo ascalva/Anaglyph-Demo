@@ -1,11 +1,44 @@
 import numpy as np
 import cv2 as cv
 
-from align import match_frames, get_crop_indices
+import align as al
 from camera_setup import init_cameras
+
+def find_smallest_frame(frame_rght, frame_left):
+
+    # Extract dimensions
+    row_r,col_r,_ = frame_rght.shape
+    row_l,col_l,_ = frame_left.shape
+
+    # Check if the right frame is the smallest
+    if (row_r < row_l) or (col_r < col_l) :
+        print("The right frame size is smaller")
+        return al.RGHT_CAM
+
+    # The left frame is the smallest
+    elif (row_l < row_r) or (col_l < col_r) :
+        print("The left frame size is smaller")
+        return al.LEFT_CAM
+
+    print("Something's not right...")
+    return -1
+
+
+def resize_frame(frame_rght, frame_left, smallest_frame):
+
+    if smallest_frame == al.RGHT_CAM :
+        frame_left = cv.resize(frame_left, frame_rght[:2])
+
+    elif smallest_frame == al.LEFT_CAM :
+        frame_rght = cv.resize(frame_rght, frame_left[:2])
+
+    # Return both frames where only one has been resized
+    return frame_rght, frame_left
+
 
 def main():
     winName            = 'AnaglyphImage'
+    smallest_frame     = 0
 
     # If the left camera is flipped (to get cameras closer), rotate every frame
     # taken by left camera. In this case, value is True.
@@ -21,15 +54,19 @@ def main():
     # TODO: Resize frames if they are not the shape
     if frame_rght.shape != frame_left.shape:
         print("Dimensions of right and left camera do not match!")
-        return
 
-    # # Set up window
-    # cv.namedWindow(  winName, cv.WINDOW_NORMAL, )
-    # cv.moveWindow(   winName, 400, 0 )
-    # cv.resizeWindow( winName, *frame_left.shape[:2] )
+        # Find the smallest frame
+        smallest_frame = find_smallest_frame(frame_rght, frame_left)
+
+        # Exit if something went wrong
+        if smallest_frame == -1:
+            return
+
+        # Resize the largest frame
+        frame_rght,frame_left = resize_frame(frame_rght, frame_left, smallest_frame)
 
     # Get frame dimensions
-    rows, cols = frame_left.shape
+    rows,cols,_ = frame_left.shape
 
     # Create space for an Anaglyph Camera :
     new_ag = np.zeros((rows, cols, 3))
@@ -43,10 +80,10 @@ def main():
         frame_left = cv.warpAffine(frame_left, M, (cols,rows))
 
     # Compute amout of misalignment between both left and right frames
-    y_shift = match_frames(frame_rght, frame_left)
+    y_shift = al.match_frames(frame_rght, frame_left)
 
     # Get crop indices to crop frames
-    top_r,bot_r,top_l,bot_l = get_crop_indices(y_shift, rows)
+    top_r,bot_r,top_l,bot_l = al.get_crop_indices(y_shift, rows)
 
     # Init state variables
     snap  = 0
@@ -62,6 +99,11 @@ def main():
         # Get the next frame from both cameras
         ret_rght, frame_rght_og = rght_cam.read()
         ret_left, frame_left_og = left_cam.read()
+
+        # Resize the largest frame if dimensions do not match
+        if smallest_frame > 0:
+            frame_rght_og,frame_left_og \
+                = resize_frame(frame_rght_og, frame_left_og, smallest_frame)
 
         # Rotate image if left camera is flipped
         if flip_left_camera :
@@ -80,8 +122,9 @@ def main():
         r_blu,r_grn,r_red = cv.split(frame_rght)
 
         # Merge chennels to form anaglyph image
-        ana_img           = cv.merge((r_grn,r_grn,l_grn))
+        # ana_img           = cv.merge((r_grn,r_grn,l_grn))
         # ana_img           = cv.merge((l_red, r_blu, r_grn))
+        ana_img           = cv.merge((r_blu, r_grn, l_red))
 
         cv.imshow(winName, ana_img)
 
@@ -110,8 +153,8 @@ def main():
         elif c == ord("a") :
             print("Realigning cameras..")
 
-            y_shift                 = match_frames(frame_rght_og, frame_left_og)
-            top_r,bot_r,top_l,bot_l = get_crop_indices(y_shift, rows)
+            y_shift                 = al.match_frames(frame_rght_og, frame_left_og)
+            top_r,bot_r,top_l,bot_l = al.get_crop_indices(y_shift, rows)
 
         # Start/Stop rotating left frames
         elif c == ord("f") :
