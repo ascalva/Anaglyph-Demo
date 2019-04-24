@@ -4,6 +4,33 @@ import cv2 as cv
 import align as al
 from camera_setup import init_cameras
 
+def print_menu():
+    print("Command options:\n"
+        + "  s - take screenshot\n"
+        + "  r - start recording\n"
+        + "  a - realign frames\n"
+        + "  f - flip left camera\n"
+        + "  q - quit\n"
+    )
+
+def createVideoWriter(frame, indx):
+    frame_width  = frame.shape[1]
+    frame_height = frame.shape[0]
+    fps          = 30
+    vid_name     = "anaglyph_video_{0}.mov".format(indx)
+
+    # Create and return video writer object to save output of program
+    return cv.VideoWriter(
+                vid_name,
+                cv.VideoWriter_fourcc('m','p','4','v'),
+                fps,
+                (
+                    frame_width,
+                    frame_height
+                ),
+                True
+            )
+
 def find_smallest_frame(frame_rght, frame_left):
 
     # Extract dimensions
@@ -89,6 +116,9 @@ def main():
     snap  = 0
     rec   = False
 
+    # Print menu
+    print_menu()
+
     # Set up window
     cv.namedWindow(  winName, cv.WINDOW_NORMAL, )
     cv.moveWindow(   winName, 400,  0 )
@@ -122,11 +152,14 @@ def main():
         r_blu,r_grn,r_red = cv.split(frame_rght)
 
         # Merge chennels to form anaglyph image
-        # ana_img           = cv.merge((r_grn,r_grn,l_grn))
+        ana_img           = cv.merge((r_grn,r_grn,l_grn))
         # ana_img           = cv.merge((l_red, r_blu, r_grn))
-        ana_img           = cv.merge((r_blu, r_grn, l_red))
+        # ana_img           = cv.merge((r_blu, r_grn, l_red))
 
         cv.imshow(winName, ana_img)
+
+        # Save frame to video if recording
+        if rec : out.write(ana_img)
 
         # User input
         c = cv.waitKey(20) & 0xff
@@ -144,10 +177,15 @@ def main():
 
         # TODO: Start/Stop recording
         elif c == ord("r") :
-            if not rec : print("Started recording")
-            else       : print("Stopped recording")
+            if not rec :
+                print("Started recording")
 
-            rec        = not rec
+            else :
+                out.release()
+                out = createVideoWriter(ana_img, snap)
+                print("Stopped recording")
+
+            rec = not rec
 
         # Realign cameras (if they were moved)
         elif c == ord("a") :
